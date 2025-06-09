@@ -1,6 +1,6 @@
 package com.editame.brokermanager.controller;
 
-import com.editame.brokermanager.service.ActiveMqService;
+import com.editame.brokermanager.service.BrokerAdminService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,11 +14,11 @@ import java.util.List;
 @RequiredArgsConstructor
 public class QueueController {
 
-    private final ActiveMqService activeMqService;
+    private final BrokerAdminService brokerAdminService;
 
     @GetMapping
     public ResponseEntity<List<String>> listQueues() {
-        List<String> queues = activeMqService.listQueues();
+        List<String> queues = brokerAdminService.listQueues();
         return ResponseEntity.ok(queues);
     }
 }

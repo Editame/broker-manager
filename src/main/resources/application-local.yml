@@ -3,7 +3,6 @@ spring:
     broker-url: tcp://localhost:61616
     user: admin
     password: admin
-    in-memory: false
     pool:
       enabled: false
   jpa:

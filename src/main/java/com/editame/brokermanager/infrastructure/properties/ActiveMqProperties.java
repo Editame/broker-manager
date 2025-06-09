@@ -1,12 +1,12 @@
 package com.editame.brokermanager.infrastructure.properties;
 
-import lombok.Getter;
+import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
-@Getter
-@ConfigurationProperties(prefix = "spring.activemq")
+@Data
 @Component
+@ConfigurationProperties(prefix = "spring.activemq")
 public class ActiveMqProperties {
     private String brokerUrl;
     private String user;
