@@ -5,8 +5,8 @@ import com.editame.brokermanager.domain.dto.MessageInfo;
 import com.editame.brokermanager.infrastructure.adapter.in.web.dto.BrokerQueuesResponse;
 import com.editame.brokermanager.infrastructure.adapter.in.web.dto.QueueInfo;
 import com.editame.brokermanager.infrastructure.adapter.in.web.dto.SendMessageRequest;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.management.MBeanServerConnection;
@@ -25,13 +25,20 @@ import java.util.Set;
 
 @Log4j2
 @Service
-@RequiredArgsConstructor
 public class JmxBrokerAdminService implements BrokerAdminService {
 
     private final MBeanServerConnection mBeanServerConnection;
+    
+    public JmxBrokerAdminService(@Autowired(required = false) MBeanServerConnection mBeanServerConnection) {
+        this.mBeanServerConnection = mBeanServerConnection;
+    }
 
     @Override
     public BrokerQueuesResponse getAllQueuesInfo() {
+        if (mBeanServerConnection == null) {
+            throw new RuntimeException("Broker not connected. Please configure connection first.");
+        }
+        
         List<QueueInfo> queueInfos = new ArrayList<>();
 
         try {
@@ -68,6 +75,10 @@ public class JmxBrokerAdminService implements BrokerAdminService {
 
     @Override
     public List<MessageInfo> getQueueMessages(String queueName) {
+        if (mBeanServerConnection == null) {
+            throw new RuntimeException("Broker not connected. Please configure connection first.");
+        }
+        
         List<MessageInfo> messages = new ArrayList<>();
         
         try {
@@ -200,6 +211,10 @@ public class JmxBrokerAdminService implements BrokerAdminService {
 
     @Override
     public void sendMessage(String queueName, SendMessageRequest messageRequest) {
+        if (mBeanServerConnection == null) {
+            throw new RuntimeException("Broker not connected. Please configure connection first.");
+        }
+        
         try {
             log.info("Sending message to queue: {}", queueName);
             

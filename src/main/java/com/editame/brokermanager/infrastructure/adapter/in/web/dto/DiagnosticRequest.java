@@ -18,15 +18,19 @@ public record DiagnosticRequest(
     String username,
     String password,
     
-    @Builder.Default
-    boolean testPing = true,
-    
-    @Builder.Default
-    boolean testPort = true,
-    
-    @Builder.Default
-    boolean testJmx = true,
-    
-    @Builder.Default
-    int timeoutSeconds = 10
-) {}
+    boolean testPing,
+    boolean testPort,
+    boolean testJmx,
+    int timeoutSeconds
+) {
+    public DiagnosticRequest {
+        if (testPing == false && testPort == false && testJmx == false) {
+            testPing = true;
+            testPort = true;
+            testJmx = true;
+        }
+        if (timeoutSeconds <= 0) {
+            timeoutSeconds = 10;
+        }
+    }
+}

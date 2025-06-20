@@ -3,6 +3,11 @@ spring:
     name: broker-manager
   profiles:
     active: local
+
+# Broker connection disabled by default
+broker:
+  connection:
+    enabled: false
   
   # JPA Configuration
   jpa:

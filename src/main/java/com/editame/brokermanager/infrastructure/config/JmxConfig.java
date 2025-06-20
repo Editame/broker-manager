@@ -14,13 +14,9 @@ import java.util.Map;
 public class JmxConfig {
 
     @Bean
-    public MBeanServerConnection mBeanServerConnection() throws Exception {
-        String jmxUrl = "service:jmx:rmi:///jndi/rmi://localhost:1099/jmxrmi";
-        Map<String, Object> env = new HashMap<>();
-        String[] creds = {"admin", "admin"};
-        env.put(JMXConnector.CREDENTIALS, creds);
-
-        JMXConnector connector = JMXConnectorFactory.connect(new JMXServiceURL(jmxUrl), env);
-        return connector.getMBeanServerConnection();
+    public MBeanServerConnection mBeanServerConnection() {
+        // Retornar null para permitir arranque sin conexión
+        // La conexión real se establecerá dinámicamente
+        return null;
     }
 }
