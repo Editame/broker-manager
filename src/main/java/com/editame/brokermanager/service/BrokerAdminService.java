@@ -1,7 +1,7 @@
 package com.editame.brokermanager.service;
 
-import java.util.List;
+import com.editame.brokermanager.domain.dto.BrokerQueuesResponse;
 
 public interface BrokerAdminService {
-    List<String> listQueues();
+    BrokerQueuesResponse getAllQueuesInfo();
 }

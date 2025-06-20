@@ -1,0 +1,40 @@
+networks:
+  broker-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+
+services:
+  activemq:
+    image: webcenter/activemq:latest
+    container_name: activemq
+    ports:
+      - "8161:8161"
+      - "61616:61616"
+      - "1099:1099"
+    environment:
+      - JAVA_OPTS=-Dcom.sun.management.jmxremote \
+        -Dcom.sun.management.jmxremote.port=1099 \
+        -Dcom.sun.management.jmxremote.authenticate=false \
+        -Dcom.sun.management.jmxremote.ssl=false \
+        -Djava.rmi.server.hostname=172.25.0.10
+    networks:
+      broker-net:
+        ipv4_address: 172.25.0.10
+
+  postgres:
+    image: postgres
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: broker_manager
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
