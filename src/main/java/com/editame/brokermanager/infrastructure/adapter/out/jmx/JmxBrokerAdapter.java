@@ -4,6 +4,7 @@ import com.editame.brokermanager.application.port.out.BrokerAdminPort;
 import com.editame.brokermanager.domain.model.BrokerMetrics;
 import com.editame.brokermanager.domain.model.Queue;
 import com.editame.brokermanager.domain.model.Message;
+import com.editame.brokermanager.domain.model.RequeueResult;
 import com.editame.brokermanager.domain.exception.BrokerOperationException;
 
 import lombok.RequiredArgsConstructor;
@@ -423,6 +424,215 @@ public class JmxBrokerAdapter implements BrokerAdminPort {
             log.error("Error al crear la cola: {}", queueName, e);
             throw new BrokerOperationException("Error al crear la cola via JMX", e);
         }
+    }
+    
+    @Override
+    public RequeueResult requeueMessages(String sourceQueue, String targetQueue, List<String> messageIds, int maxBatchSize) {
+        log.info("Iniciando reencolamiento de {} mensajes de {} a {}", messageIds.size(), sourceQueue, targetQueue);
+        
+        long startTime = System.currentTimeMillis();
+        int successCount = 0;
+        int failCount = 0;
+        List<String> failedIds = new ArrayList<>();
+        
+        // LÍMITE DE SEGURIDAD: Máximo 500 mensajes por operación
+        final int SAFETY_LIMIT = 500;
+        int actualBatchSize = Math.min(maxBatchSize, SAFETY_LIMIT);
+        
+        if (messageIds.size() > actualBatchSize) {
+            String errorMsg = String.format("Límite de seguridad: máximo %d mensajes por operación. Solicitados: %d", 
+                actualBatchSize, messageIds.size());
+            log.warn(errorMsg);
+            
+            return RequeueResult.builder()
+                .sourceQueue(sourceQueue)
+                .targetQueue(targetQueue)
+                .totalRequested(messageIds.size())
+                .successfullyRequeued(0)
+                .failed(messageIds.size())
+                .failedMessageIds(messageIds)
+                .durationMillis(System.currentTimeMillis() - startTime)
+                .timestamp(Instant.now())
+                .message("Operación rechazada por límite de seguridad")
+                .success(false)
+                .details(errorMsg)
+                .build();
+        }
+        
+        try (JMXConnector connector = connectionManager.getConnection()) {
+            MBeanServerConnection connection = connector.getMBeanServerConnection();
+            
+            // Verificar que ambas colas existen
+            if (!queueExists(sourceQueue)) {
+                throw new BrokerOperationException("Cola origen no existe: " + sourceQueue);
+            }
+            if (!queueExists(targetQueue)) {
+                throw new BrokerOperationException("Cola destino no existe: " + targetQueue);
+            }
+            
+            // Procesar mensajes en lotes pequeños para evitar timeouts
+            final int MICRO_BATCH_SIZE = 10;
+            List<List<String>> microBatches = partitionList(messageIds, MICRO_BATCH_SIZE);
+            
+            for (List<String> microBatch : microBatches) {
+                try {
+                    // Procesar micro-lote
+                    for (String messageId : microBatch) {
+                        try {
+                            if (requeueSingleMessage(connection, sourceQueue, targetQueue, messageId)) {
+                                successCount++;
+                            } else {
+                                failCount++;
+                                failedIds.add(messageId);
+                            }
+                            
+                            // Pequeña pausa para no saturar el broker
+                            Thread.sleep(10);
+                            
+                        } catch (Exception e) {
+                            log.warn("Error al reencolar mensaje {}: {}", messageId, e.getMessage());
+                            failCount++;
+                            failedIds.add(messageId);
+                        }
+                    }
+                    
+                    // Pausa entre micro-lotes
+                    Thread.sleep(50);
+                    
+                } catch (Exception e) {
+                    log.error("Error en micro-lote: {}", e.getMessage());
+                    // Marcar todos los mensajes del micro-lote como fallidos
+                    failCount += microBatch.size();
+                    failedIds.addAll(microBatch);
+                }
+            }
+            
+            long duration = System.currentTimeMillis() - startTime;
+            boolean isSuccess = failCount == 0;
+            
+            String message = String.format("Reencolamiento completado: %d exitosos, %d fallidos de %d total", 
+                successCount, failCount, messageIds.size());
+            
+            log.info("{} - Duración: {}ms", message, duration);
+            
+            return RequeueResult.builder()
+                .sourceQueue(sourceQueue)
+                .targetQueue(targetQueue)
+                .totalRequested(messageIds.size())
+                .successfullyRequeued(successCount)
+                .failed(failCount)
+                .failedMessageIds(failedIds)
+                .durationMillis(duration)
+                .timestamp(Instant.now())
+                .message(message)
+                .success(isSuccess)
+                .details(isSuccess ? "Operación completada exitosamente" : 
+                    String.format("Algunos mensajes fallaron. Ver failedMessageIds para detalles."))
+                .build();
+                
+        } catch (Exception e) {
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("Error crítico durante reencolamiento: {}", e.getMessage(), e);
+            
+            return RequeueResult.builder()
+                .sourceQueue(sourceQueue)
+                .targetQueue(targetQueue)
+                .totalRequested(messageIds.size())
+                .successfullyRequeued(successCount)
+                .failed(messageIds.size() - successCount)
+                .failedMessageIds(messageIds.subList(successCount, messageIds.size()))
+                .durationMillis(duration)
+                .timestamp(Instant.now())
+                .message("Error crítico durante reencolamiento")
+                .success(false)
+                .details(e.getMessage())
+                .build();
+        }
+    }
+    
+    /**
+     * Reencola un solo mensaje de forma segura
+     */
+    private boolean requeueSingleMessage(MBeanServerConnection connection, String sourceQueue, String targetQueue, String messageId) {
+        try {
+            // 1. Obtener el mensaje de la cola origen
+            ObjectName sourceQueueObjName = getQueueObjectName(connection, sourceQueue);
+            if (sourceQueueObjName == null) {
+                return false;
+            }
+            
+            // 2. Buscar el mensaje específico
+            CompositeData[] messages = (CompositeData[]) connection.invoke(
+                sourceQueueObjName, "browse", new Object[]{}, new String[]{});
+            
+            CompositeData targetMessage = null;
+            for (CompositeData message : messages) {
+                String msgId = (String) message.get("JMSMessageID");
+                if (messageId.equals(msgId)) {
+                    targetMessage = message;
+                    break;
+                }
+            }
+            
+            if (targetMessage == null) {
+                log.warn("Mensaje no encontrado: {}", messageId);
+                return false;
+            }
+            
+            // 3. Extraer contenido del mensaje
+            String messageBody = (String) targetMessage.get("Text");
+            if (messageBody == null) {
+                messageBody = "";
+            }
+            
+            // 4. Enviar a cola destino
+            ObjectName targetQueueObjName = getQueueObjectName(connection, targetQueue);
+            if (targetQueueObjName == null) {
+                return false;
+            }
+            
+            Object[] params = {messageBody};
+            String[] signature = {"java.lang.String"};
+            connection.invoke(targetQueueObjName, "sendTextMessage", params, signature);
+            
+            // 5. Eliminar de cola origen (solo si el envío fue exitoso)
+            Object[] deleteParams = {messageId};
+            String[] deleteSignature = {"java.lang.String"};
+            connection.invoke(sourceQueueObjName, "removeMessage", deleteParams, deleteSignature);
+            
+            return true;
+            
+        } catch (Exception e) {
+            log.error("Error al reencolar mensaje {}: {}", messageId, e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Obtiene el ObjectName de una cola
+     */
+    private ObjectName getQueueObjectName(MBeanServerConnection connection, String queueName) throws Exception {
+        ObjectName queueObjectName = new ObjectName(
+            "org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=" + queueName);
+        
+        Set<ObjectInstance> queueInstances = connection.queryMBeans(queueObjectName, null);
+        
+        if (queueInstances.isEmpty()) {
+            return null;
+        }
+        
+        return queueInstances.iterator().next().getObjectName();
+    }
+    
+    /**
+     * Divide una lista en sublistas más pequeñas
+     */
+    private <T> List<List<T>> partitionList(List<T> list, int partitionSize) {
+        List<List<T>> partitions = new ArrayList<>();
+        for (int i = 0; i < list.size(); i += partitionSize) {
+            partitions.add(list.subList(i, Math.min(i + partitionSize, list.size())));
+        }
+        return partitions;
     }
     
     // Métodos auxiliares

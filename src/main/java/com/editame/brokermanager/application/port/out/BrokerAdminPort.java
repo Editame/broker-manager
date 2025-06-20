@@ -3,6 +3,7 @@ package com.editame.brokermanager.application.port.out;
 import com.editame.brokermanager.domain.model.BrokerMetrics;
 import com.editame.brokermanager.domain.model.Queue;
 import com.editame.brokermanager.domain.model.Message;
+import com.editame.brokermanager.domain.model.RequeueResult;
 
 import java.util.List;
 import java.util.Optional;
@@ -71,4 +72,9 @@ public interface BrokerAdminPort {
      * Crea una nueva cola
      */
     void createQueue(String queueName);
+    
+    /**
+     * Reencola mensajes de una cola a otra (con límite de seguridad)
+     */
+    RequeueResult requeueMessages(String sourceQueue, String targetQueue, List<String> messageIds, int maxBatchSize);
 }
