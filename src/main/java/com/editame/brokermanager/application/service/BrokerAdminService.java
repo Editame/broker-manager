@@ -1,8 +1,9 @@
-package com.editame.brokermanager.service;
+package com.editame.brokermanager.application.service;
 
-import com.editame.brokermanager.domain.dto.BrokerQueuesResponse;
 import com.editame.brokermanager.domain.dto.MessageInfo;
-import com.editame.brokermanager.domain.dto.SendMessageRequest;
+import com.editame.brokermanager.infrastructure.adapter.in.web.dto.BrokerQueuesResponse;
+import com.editame.brokermanager.infrastructure.adapter.in.web.dto.SendMessageRequest;
+
 
 import java.util.List;
 

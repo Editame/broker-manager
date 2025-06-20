@@ -1,40 +1,87 @@
+version: '3.8'
+
+services:
+  # ActiveMQ Broker
+  activemq:
+    image: webcenter/activemq:latest
+    container_name: activemq-broker
+    ports:
+      - "61616:61616"   # OpenWire
+      - "8161:8161"     # Web Console
+      - "1099:1099"     # JMX
+    environment:
+      - JAVA_OPTS=-Dcom.sun.management.jmxremote 
+        -Dcom.sun.management.jmxremote.port=1099 
+        -Dcom.sun.management.jmxremote.authenticate=false 
+        -Dcom.sun.management.jmxremote.ssl=false 
+        -Djava.rmi.server.hostname=172.25.0.10
+    networks:
+      broker-net:
+        ipv4_address: 172.25.0.10
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8161/admin/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: broker-postgres
+    environment:
+      POSTGRES_DB: broker_manager
+      POSTGRES_USER: broker_user
+      POSTGRES_PASSWORD: broker_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - broker-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U broker_user -d broker_manager"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Broker Manager Application
+  broker-manager:
+    build: .
+    container_name: broker-manager-app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      ACTIVEMQ_JMX_URL: service:jmx:rmi:///jndi/rmi://172.25.0.10:1099/jmxrmi
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/broker_manager
+      SPRING_DATASOURCE_USERNAME: broker_user
+      SPRING_DATASOURCE_PASSWORD: broker_pass
+      JAVA_OPTS: -Xmx512m -Xms256m
+    depends_on:
+      activemq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - broker-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+volumes:
+  postgres_data:
+    driver: local
+
 networks:
   broker-net:
     driver: bridge
     ipam:
       config:
         - subnet: 172.25.0.0/16
-
-services:
-  activemq:
-    image: webcenter/activemq:latest
-    container_name: activemq
-    ports:
-      - "8161:8161"
-      - "61616:61616"
-      - "1099:1099"
-    environment:
-      - JAVA_OPTS=-Dcom.sun.management.jmxremote \
-        -Dcom.sun.management.jmxremote.port=1099 \
-        -Dcom.sun.management.jmxremote.authenticate=false \
-        -Dcom.sun.management.jmxremote.ssl=false \
-        -Djava.rmi.server.hostname=172.25.0.10
-    networks:
-      broker-net:
-        ipv4_address: 172.25.0.10
-
-  postgres:
-    image: postgres
-    container_name: postgres
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_DB: broker_manager
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
-
-volumes:
-  postgres_data:

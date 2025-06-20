@@ -1,4 +1,4 @@
-package com.editame.brokermanager.domain.dto;
+package com.editame.brokermanager.infrastructure.adapter.in.web.dto;
 
 import java.util.List;
 

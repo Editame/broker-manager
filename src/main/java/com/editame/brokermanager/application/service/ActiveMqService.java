@@ -1,4 +1,4 @@
-package com.editame.brokermanager.service;
+package com.editame.brokermanager.application.service;
 
 import com.editame.brokermanager.domain.exception.ActiveMqException;
 

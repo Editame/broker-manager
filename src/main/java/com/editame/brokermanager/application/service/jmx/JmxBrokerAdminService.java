@@ -1,10 +1,10 @@
-package com.editame.brokermanager.service.jmx;
+package com.editame.brokermanager.application.service.jmx;
 
-import com.editame.brokermanager.domain.dto.BrokerQueuesResponse;
+import com.editame.brokermanager.application.service.BrokerAdminService;
 import com.editame.brokermanager.domain.dto.MessageInfo;
-import com.editame.brokermanager.domain.dto.QueueInfo;
-import com.editame.brokermanager.domain.dto.SendMessageRequest;
-import com.editame.brokermanager.service.BrokerAdminService;
+import com.editame.brokermanager.infrastructure.adapter.in.web.dto.BrokerQueuesResponse;
+import com.editame.brokermanager.infrastructure.adapter.in.web.dto.QueueInfo;
+import com.editame.brokermanager.infrastructure.adapter.in.web.dto.SendMessageRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
@@ -218,15 +218,15 @@ public class JmxBrokerAdminService implements BrokerAdminService {
             ObjectName objectName = queueMBeans.iterator().next();
             
             // Preparar los parámetros del mensaje
-            String messageBody = messageRequest.getBody() != null ? messageRequest.getBody() : "";
+            String messageBody = messageRequest.body() != null ? messageRequest.body() : "";
             
             // Crear el mapa de headers
-            Map<String, Object> headers = messageRequest.getHeaders() != null ? 
-                messageRequest.getHeaders() : new HashMap<>();
+            Map<String, Object> headers = messageRequest.headers() != null ?
+                messageRequest.headers() : new HashMap<>();
             
             // Agregar propiedades JMS si están especificadas
-            if (messageRequest.getType() != null && !messageRequest.getType().isEmpty()) {
-                headers.put("JMSType", messageRequest.getType());
+            if (messageRequest.type() != null && !messageRequest.type().isEmpty()) {
+                headers.put("JMSType", messageRequest.type());
             }
             
             // Enviar el mensaje usando el método sendTextMessage del MBean
