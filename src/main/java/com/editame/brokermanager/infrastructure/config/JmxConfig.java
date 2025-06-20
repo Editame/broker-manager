@@ -15,9 +15,9 @@ public class JmxConfig {
 
     @Bean
     public MBeanServerConnection mBeanServerConnection() throws Exception {
-        String jmxUrl = "service:jmx:rmi:///jndi/rmi://localhost:1099/jmxrmi"; // Ajusta si es necesario
+        String jmxUrl = "service:jmx:rmi:///jndi/rmi://localhost:1099/jmxrmi";
         Map<String, Object> env = new HashMap<>();
-        String[] creds = {"admin", "admin"}; // Credenciales de JMX del broker
+        String[] creds = {"admin", "admin"};
         env.put(JMXConnector.CREDENTIALS, creds);
 
         JMXConnector connector = JMXConnectorFactory.connect(new JMXServiceURL(jmxUrl), env);
