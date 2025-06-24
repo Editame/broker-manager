@@ -22,24 +22,8 @@ public class InMemoryConnectionRepository implements ConnectionRepository {
     private final Map<String, BrokerConnection> connections = new ConcurrentHashMap<>();
     
     public InMemoryConnectionRepository() {
-        // Crear conexión por defecto al localhost
-        BrokerConnection defaultConnection = BrokerConnection.builder()
-            .id("default-localhost")
-            .name("Localhost (Default)")
-            .host("localhost")
-            .port(1099)
-            .username(null)
-            .password(null)
-            .environment("local")
-            .description("Conexión por defecto al broker local")
-            .active(true)
-            .lastTestStatus(BrokerConnection.ConnectionStatus.UNKNOWN)
-            .createdAt(Instant.now())
-            .updatedAt(Instant.now())
-            .build();
-        
-        connections.put(defaultConnection.getId(), defaultConnection);
-        log.info("Repositorio inicializado con conexión por defecto: {}", defaultConnection.getName());
+        // Repositorio inicializado vacío - Las conexiones se gestionan dinámicamente
+        log.info("Repositorio de conexiones inicializado - Listo para gestión dinámica");
     }
     
     @Override
