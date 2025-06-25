@@ -54,16 +54,29 @@ public class QueueController {
     @GetMapping
     @Operation(summary = "Listar todas las colas", 
                description = "Obtiene la lista completa de colas del broker ActiveMQ")
-    public ResponseEntity<List<QueueResponse>> getAllQueues() {
-        log.info("Solicitando lista de todas las colas");
+    public ResponseEntity<List<QueueResponse>> getAllQueues(
+            @Parameter(description = "Término de búsqueda para filtrar colas") 
+            @RequestParam(required = false) String search,
+            @Parameter(description = "Número de página (para paginación futura)")
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Tamaño de página (para paginación futura)")
+            @RequestParam(defaultValue = "1000") int size) {
+        log.info("Solicitando lista de todas las colas - search: {}, page: {}, size: {}", search, page, size);
         
         var queues = brokerManagementUseCase.getAllQueues();
         var response = queues.stream()
-            .map(queueMapper::toResponse)
-            .toList();
+            .map(queueMapper::toResponse);
         
-        log.info("Se encontraron {} colas", response.size());
-        return ResponseEntity.ok(response);
+        // Aplicar filtro de búsqueda si se proporciona
+        if (search != null && !search.trim().isEmpty()) {
+            response = response.filter(queue -> 
+                queue.getName().toLowerCase().contains(search.toLowerCase()));
+        }
+        
+        var finalResponse = response.toList();
+        
+        log.info("Se encontraron {} colas", finalResponse.size());
+        return ResponseEntity.ok(finalResponse);
     }
     
     @GetMapping("/{queueName}")

@@ -200,21 +200,26 @@ public class ConnectionManagementService implements ConnectionManagementUseCase 
     private BrokerConnection.ConnectionStatus testConnectionInternal(String host, int port, String username, String password) {
         try {
             String jmxUrl = String.format("service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi", host, port);
+            log.info("Probando conexión JMX a URL: {}", jmxUrl);
             JMXServiceURL serviceURL = new JMXServiceURL(jmxUrl);
             
             Map<String, Object> environment = new HashMap<>();
             if (username != null && !username.trim().isEmpty()) {
+                log.info("Usando autenticación para usuario: {}", username);
                 environment.put(JMXConnector.CREDENTIALS, new String[]{username, password});
             }
             
             try (JMXConnector connector = JMXConnectorFactory.connect(serviceURL, environment)) {
                 // Intentar obtener una conexión al MBeanServer
                 connector.getMBeanServerConnection();
+                log.info("Conexión JMX exitosa a: {}", jmxUrl);
                 return BrokerConnection.ConnectionStatus.CONNECTED;
             }
             
         } catch (Exception e) {
-            log.warn("Error al probar conexión {}:{} - {}", host, port, e.getMessage());
+            log.error("Error al probar conexión {}:{} - Tipo: {} - Mensaje: {}", 
+                     host, port, e.getClass().getName(), e.getMessage());
+            e.printStackTrace(); // Imprimir stack trace completo para diagnóstico
             return BrokerConnection.ConnectionStatus.ERROR;
         }
     }

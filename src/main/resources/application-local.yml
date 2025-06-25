@@ -5,6 +5,16 @@ spring:
     driver-class-name: org.sqlite.JDBC
     username: ""
     password: ""
+    # HikariCP Configuration for SQLite - MÁS AGRESIVO
+    hikari:
+      maximum-pool-size: 1          # Solo 1 conexión para SQLite
+      minimum-idle: 0               # Sin conexiones idle
+      connection-timeout: 10000     # 10 segundos timeout
+      idle-timeout: 30000           # 30 segundos idle
+      max-lifetime: 300000          # 5 minutos max lifetime
+      leak-detection-threshold: 10000  # 10 segundos para detectar leaks
+      pool-name: SQLitePool
+      auto-commit: true             # Auto commit habilitado
   
   jpa:
     database-platform: org.hibernate.community.dialect.SQLiteDialect
@@ -16,6 +26,8 @@ spring:
         format_sql: true
         jdbc:
           time_zone: UTC
+        connection:
+          autocommit: true          # Auto commit en Hibernate también
   
   # ActiveMQ (para testing interno)
   activemq:
@@ -40,4 +52,5 @@ logging:
     com.editame.brokermanager: DEBUG
     org.springframework.security: INFO
     org.hibernate.SQL: INFO
+    com.zaxxer.hikari: DEBUG        # Debug para HikariCP
 

@@ -76,7 +76,7 @@ public class JmxBrokerAdapter implements BrokerAdminPort {
             double cpuUsage = 0.0; // Por ahora simplificado
             
             // Métricas de tiempo
-            Long uptime = (Long) connection.getAttribute(brokerName, "UptimeMillis");
+            Long uptime = safeConvertToLong(connection.getAttribute(brokerName, "UptimeMillis"));
             
             return BrokerMetrics.builder()
                 .brokerId(brokerId)
@@ -282,7 +282,7 @@ public class JmxBrokerAdapter implements BrokerAdminPort {
             ObjectName queueObjName = queueInstances.iterator().next().getObjectName();
             
             // Obtener el tamaño actual antes de purgar
-            Long currentSize = (Long) connection.getAttribute(queueObjName, "QueueSize");
+            Long currentSize = safeConvertToLong(connection.getAttribute(queueObjName, "QueueSize"));
             
             // Purgar la cola
             connection.invoke(queueObjName, "purge", new Object[]{}, new String[]{});
@@ -638,23 +638,15 @@ public class JmxBrokerAdapter implements BrokerAdminPort {
     // Métodos auxiliares
     private Queue buildQueueFromMBean(MBeanServerConnection connection, ObjectName queueName) throws Exception {
         String name = queueName.getKeyProperty("destinationName");
-        Long queueSize = (Long) connection.getAttribute(queueName, "QueueSize");
-        Long enqueueCount = (Long) connection.getAttribute(queueName, "EnqueueCount");
-        Long dequeueCount = (Long) connection.getAttribute(queueName, "DequeueCount");
-        // Manejar tanto Integer como Long para compatibilidad
-        Object consumerCountObj = connection.getAttribute(queueName, "ConsumerCount");
-        Integer consumerCount = consumerCountObj instanceof Long ? 
-            ((Long) consumerCountObj).intValue() : (Integer) consumerCountObj;
-            
-        Object producerCountObj = connection.getAttribute(queueName, "ProducerCount");
-        Integer producerCount = producerCountObj instanceof Long ? 
-            ((Long) producerCountObj).intValue() : (Integer) producerCountObj;
-            
-        Long memoryLimit = (Long) connection.getAttribute(queueName, "MemoryLimit");
         
-        Object memoryPercentUsageObj = connection.getAttribute(queueName, "MemoryPercentUsage");
-        Integer memoryPercentUsage = memoryPercentUsageObj instanceof Long ? 
-            ((Long) memoryPercentUsageObj).intValue() : (Integer) memoryPercentUsageObj;
+        // Usar métodos seguros para conversión
+        Long queueSize = safeConvertToLong(connection.getAttribute(queueName, "QueueSize"));
+        Long enqueueCount = safeConvertToLong(connection.getAttribute(queueName, "EnqueueCount"));
+        Long dequeueCount = safeConvertToLong(connection.getAttribute(queueName, "DequeueCount"));
+        Integer consumerCount = safeConvertToInteger(connection.getAttribute(queueName, "ConsumerCount"));
+        Integer producerCount = safeConvertToInteger(connection.getAttribute(queueName, "ProducerCount"));
+        Long memoryLimit = safeConvertToLong(connection.getAttribute(queueName, "MemoryLimit"));
+        Integer memoryPercentUsage = safeConvertToInteger(connection.getAttribute(queueName, "MemoryPercentUsage"));
         
         return Queue.builder()
             .name(name)
@@ -663,8 +655,8 @@ public class JmxBrokerAdapter implements BrokerAdminPort {
             .queueSize(queueSize != null ? queueSize : 0)
             .enqueueCount(enqueueCount != null ? enqueueCount : 0)
             .dequeueCount(dequeueCount != null ? dequeueCount : 0)
-            .consumerCount(consumerCount != null ? consumerCount : 0)
-            .producerCount(producerCount != null ? producerCount : 0)
+            .consumerCount(consumerCount)
+            .producerCount(producerCount)
             .memoryLimit(memoryLimit != null ? memoryLimit : 0)
             .memoryPercentUsage(memoryPercentUsage != null ? memoryPercentUsage : 0)
             .paused(false)
@@ -720,8 +712,7 @@ public class JmxBrokerAdapter implements BrokerAdminPort {
     
     private long getDiskUsage(MBeanServerConnection connection, ObjectName brokerName) {
         try {
-            Long storeUsage = (Long) connection.getAttribute(brokerName, "StorePercentUsage");
-            return storeUsage != null ? storeUsage : 0;
+            return safeConvertToLong(connection.getAttribute(brokerName, "StorePercentUsage"));
         } catch (Exception e) {
             log.warn("No se pudo obtener el uso de disco", e);
             return 0;
@@ -730,11 +721,35 @@ public class JmxBrokerAdapter implements BrokerAdminPort {
     
     private long getMaxDiskUsage(MBeanServerConnection connection, ObjectName brokerName) {
         try {
-            Long storeLimit = (Long) connection.getAttribute(brokerName, "StoreLimit");
-            return storeLimit != null ? storeLimit : 0;
+            Long result = safeConvertToLong(connection.getAttribute(brokerName, "StoreLimit"));
+            return result != null && result > 0 ? result : 100;
         } catch (Exception e) {
             log.warn("No se pudo obtener el límite de disco", e);
             return 100;
         }
+    }
+    
+    /**
+     * Convierte un objeto Number (Integer o Long) a Long de manera segura
+     */
+    private Long safeConvertToLong(Object value) {
+        if (value instanceof Long) {
+            return (Long) value;
+        } else if (value instanceof Integer) {
+            return ((Integer) value).longValue();
+        }
+        return 0L;
+    }
+    
+    /**
+     * Convierte un objeto Number (Integer o Long) a Integer de manera segura
+     */
+    private Integer safeConvertToInteger(Object value) {
+        if (value instanceof Integer) {
+            return (Integer) value;
+        } else if (value instanceof Long) {
+            return ((Long) value).intValue();
+        }
+        return 0;
     }
 }

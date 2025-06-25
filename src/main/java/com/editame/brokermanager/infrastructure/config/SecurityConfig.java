@@ -10,7 +10,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.List;
+import java.util.Arrays;
 
 /**
  * Configuración de seguridad
@@ -38,10 +38,35 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of("*"));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("*"));
+        
+        // Usar allowedOriginPatterns en lugar de allowedOrigins para evitar conflictos
+        configuration.setAllowedOriginPatterns(Arrays.asList(
+            "http://localhost:*",
+            "http://127.0.0.1:*",
+            "http://10.255.255.254:*"
+        ));
+        
+        // Métodos permitidos
+        configuration.setAllowedMethods(Arrays.asList(
+            "GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"
+        ));
+        
+        // Headers permitidos
+        configuration.setAllowedHeaders(Arrays.asList("*"));
+        
+        // Headers expuestos
+        configuration.setExposedHeaders(Arrays.asList(
+            "Access-Control-Allow-Origin",
+            "Access-Control-Allow-Credentials",
+            "Access-Control-Allow-Methods",
+            "Access-Control-Allow-Headers"
+        ));
+        
+        // Permitir credenciales
         configuration.setAllowCredentials(true);
+        
+        // Tiempo de cache para preflight
+        configuration.setMaxAge(3600L);
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
