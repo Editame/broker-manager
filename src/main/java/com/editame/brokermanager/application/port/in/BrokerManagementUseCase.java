@@ -1,8 +1,8 @@
 package com.editame.brokermanager.application.port.in;
 
 import com.editame.brokermanager.domain.model.BrokerMetrics;
-import com.editame.brokermanager.domain.model.Queue;
 import com.editame.brokermanager.domain.model.Message;
+import com.editame.brokermanager.domain.model.Queue;
 import lombok.Builder;
 
 import java.util.List;
@@ -14,59 +14,59 @@ import java.util.Optional;
 public interface BrokerManagementUseCase {
     
     /**
-     * Obtiene las métricas actuales del broker
+     * Obtiene las métricas actuales del broker especificado
      */
-    BrokerMetrics getBrokerMetrics();
+    BrokerMetrics getBrokerMetrics(String connectionId);
     
     /**
-     * Obtiene todas las colas del broker
+     * Obtiene todas las colas del broker especificado
      */
-    List<Queue> getAllQueues();
+    List<Queue> getAllQueues(String connectionId);
     
     /**
-     * Obtiene una cola específica por nombre
+     * Obtiene una cola específica por nombre del broker especificado
      */
-    Optional<Queue> getQueue(String queueName);
+    Optional<Queue> getQueue(String connectionId, String queueName);
     
     /**
      * Obtiene los mensajes de una cola específica
      */
-    List<Message> getQueueMessages(String queueName, int limit, int offset);
+    List<Message> getQueueMessages(String connectionId, String queueName, int limit, int offset);
     
     /**
      * Envía un mensaje a una cola
      */
-    void sendMessage(String queueName, SendMessageCommand command);
+    void sendMessage(String connectionId, String queueName, SendMessageCommand command);
     
     /**
      * Elimina un mensaje específico de una cola
      */
-    void deleteMessage(String queueName, String messageId);
+    void deleteMessage(String connectionId, String queueName, String messageId);
     
     /**
      * Purga todos los mensajes de una cola
      */
-    void purgeQueue(String queueName);
+    void purgeQueue(String connectionId, String queueName);
     
     /**
      * Pausa una cola
      */
-    void pauseQueue(String queueName);
+    void pauseQueue(String connectionId, String queueName);
     
     /**
      * Reanuda una cola pausada
      */
-    void resumeQueue(String queueName);
+    void resumeQueue(String connectionId, String queueName);
     
     /**
      * Elimina una cola
      */
-    void deleteQueue(String queueName);
+    void deleteQueue(String connectionId, String queueName);
     
     /**
      * Crea una nueva cola
      */
-    void createQueue(String queueName);
+    void createQueue(String connectionId, String queueName);
     
     /**
      * Comando para enviar mensaje

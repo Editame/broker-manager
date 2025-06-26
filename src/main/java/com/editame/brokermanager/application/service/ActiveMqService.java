@@ -1,7 +1,6 @@
 package com.editame.brokermanager.application.service;
 
 import com.editame.brokermanager.domain.exception.ActiveMqException;
-
 import jakarta.jms.Connection;
 import jakarta.jms.ConnectionFactory;
 import jakarta.jms.JMSException;

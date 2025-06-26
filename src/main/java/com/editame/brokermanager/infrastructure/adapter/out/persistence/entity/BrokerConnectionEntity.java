@@ -1,6 +1,13 @@
 package com.editame.brokermanager.infrastructure.adapter.out.persistence.entity;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -45,6 +52,12 @@ public class BrokerConnectionEntity {
     
     @Column(nullable = false)
     private Boolean active;
+    
+    @Column(name = "current_jmx_connection_id")
+    private String currentJmxConnectionId;
+    
+    @Column(name = "last_used")
+    private Instant lastUsed;
     
     @Column(name = "last_tested")
     private Instant lastTested;

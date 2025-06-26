@@ -1,15 +1,11 @@
 package com.editame.brokermanager.infrastructure.config;
 
 import com.editame.brokermanager.application.port.out.ConnectionRepository;
-import com.editame.brokermanager.domain.model.BrokerConnection;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
-
-import java.time.Instant;
-import java.util.UUID;
 
 /**
  * Inicializador de datos por defecto

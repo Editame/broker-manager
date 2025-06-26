@@ -3,13 +3,16 @@ package com.editame.brokermanager.infrastructure.adapter.in.web;
 import com.editame.brokermanager.application.port.in.BrokerManagementUseCase;
 import com.editame.brokermanager.infrastructure.adapter.in.web.dto.BrokerMetricsResponse;
 import com.editame.brokermanager.shared.mapper.BrokerMapper;
-
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
 
@@ -29,25 +32,33 @@ public class BrokerController {
     
     @GetMapping("/metrics")
     @Operation(summary = "Obtener métricas del broker", 
-               description = "Retorna las métricas actuales del broker ActiveMQ incluyendo CPU, memoria, conexiones, etc.")
-    public ResponseEntity<BrokerMetricsResponse> getBrokerMetrics() {
-        log.info("Solicitando métricas del broker");
+               description = "Retorna las métricas actuales del broker ActiveMQ especificado por connectionId")
+    public ResponseEntity<BrokerMetricsResponse> getBrokerMetrics(
+            @RequestParam String connectionId) {
+        log.info("Solicitando métricas del broker para conexión: {}", connectionId);
         
-        var metrics = brokerManagementUseCase.getBrokerMetrics();
+        var metrics = brokerManagementUseCase.getBrokerMetrics(connectionId);
         var response = brokerMapper.toResponse(metrics);
         
-        log.debug("Métricas del broker obtenidas: CPU={}%, Memoria={}MB", 
-                 metrics.getCpuUsage(), metrics.getMemoryUsage() / 1024 / 1024);
+        log.debug("Métricas del broker obtenidas para {}: CPU={}%, Memoria={}MB", 
+                 connectionId, metrics.getCpuUsage(), metrics.getMemoryUsage() / 1024 / 1024);
         
         return ResponseEntity.ok(response);
     }
     
     @GetMapping("/health")
     @Operation(summary = "Verificar salud del broker", 
-               description = "Endpoint de health check para verificar el estado del broker")
-    public ResponseEntity<HealthResponse> getHealth() {
+               description = "Endpoint de health check para verificar el estado del broker especificado")
+    public ResponseEntity<HealthResponse> getHealth(
+            @RequestParam(required = false) String connectionId) {
         try {
-            var metrics = brokerManagementUseCase.getBrokerMetrics();
+            // Si no se especifica connectionId, intentar usar una conexión activa
+            if (connectionId == null) {
+                // TODO: Obtener primera conexión activa o retornar error
+                return ResponseEntity.badRequest().build();
+            }
+            
+            var metrics = brokerManagementUseCase.getBrokerMetrics(connectionId);
             
             HealthResponse health = HealthResponse.builder()
                 .status("UP")

@@ -2,17 +2,16 @@ package com.editame.brokermanager.application.service;
 
 import com.editame.brokermanager.application.port.in.BrokerManagementUseCase;
 import com.editame.brokermanager.application.port.out.BrokerAdminPort;
-import com.editame.brokermanager.domain.model.BrokerMetrics;
-import com.editame.brokermanager.domain.model.Queue;
-import com.editame.brokermanager.domain.model.Message;
-import com.editame.brokermanager.domain.exception.QueueNotFoundException;
-import com.editame.brokermanager.domain.exception.MessageNotFoundException;
 import com.editame.brokermanager.domain.exception.BrokerOperationException;
-
+import com.editame.brokermanager.domain.exception.MessageNotFoundException;
+import com.editame.brokermanager.domain.exception.QueueNotFoundException;
+import com.editame.brokermanager.domain.model.BrokerMetrics;
+import com.editame.brokermanager.domain.model.Message;
+import com.editame.brokermanager.domain.model.Queue;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,57 +32,57 @@ public class BrokerManagementService implements BrokerManagementUseCase {
     private final BrokerAdminPort brokerAdminPort;
     
     @Override
-    @Cacheable(value = "brokerMetrics", unless = "#result == null")
-    public BrokerMetrics getBrokerMetrics() {
-        log.debug("Obteniendo métricas del broker");
+    @Cacheable(value = "brokerMetrics", key = "#connectionId", unless = "#result == null")
+    public BrokerMetrics getBrokerMetrics(String connectionId) {
+        log.debug("Obteniendo métricas del broker para conexión: {}", connectionId);
         try {
-            return brokerAdminPort.getBrokerMetrics();
+            return brokerAdminPort.getBrokerMetrics(connectionId);
         } catch (Exception e) {
-            log.error("Error al obtener métricas del broker", e);
+            log.error("Error al obtener métricas del broker para conexión: {}", connectionId, e);
             throw new BrokerOperationException("No se pudieron obtener las métricas del broker", e);
         }
     }
     
     @Override
-    @Cacheable(value = "queues", unless = "#result.isEmpty()")
-    public List<Queue> getAllQueues() {
-        log.debug("Obteniendo todas las colas");
+    @Cacheable(value = "queues", key = "#connectionId", unless = "#result.isEmpty()")
+    public List<Queue> getAllQueues(String connectionId) {
+        log.debug("Obteniendo todas las colas para conexión: {}", connectionId);
         try {
-            List<Queue> queues = brokerAdminPort.listQueues();
-            log.info("Se encontraron {} colas", queues.size());
+            List<Queue> queues = brokerAdminPort.listQueues(connectionId);
+            log.info("Se encontraron {} colas para conexión: {}", queues.size(), connectionId);
             return queues;
         } catch (Exception e) {
-            log.error("Error al obtener las colas", e);
+            log.error("Error al obtener las colas para conexión: {}", connectionId, e);
             throw new BrokerOperationException("No se pudieron obtener las colas", e);
         }
     }
     
     @Override
-    @Cacheable(value = "queue", key = "#queueName")
-    public Optional<Queue> getQueue(String queueName) {
-        log.debug("Obteniendo información de la cola: {}", queueName);
+    @Cacheable(value = "queue", key = "#connectionId + '_' + #queueName")
+    public Optional<Queue> getQueue(String connectionId, String queueName) {
+        log.debug("Obteniendo información de la cola: {} para conexión: {}", queueName, connectionId);
         validateQueueName(queueName);
         
         try {
-            return brokerAdminPort.getQueueInfo(queueName);
+            return brokerAdminPort.getQueueInfo(connectionId, queueName);
         } catch (Exception e) {
-            log.error("Error al obtener información de la cola: {}", queueName, e);
+            log.error("Error al obtener información de la cola: {} para conexión: {}", queueName, connectionId, e);
             throw new BrokerOperationException("No se pudo obtener información de la cola: " + queueName, e);
         }
     }
     
     @Override
-    public List<Message> getQueueMessages(String queueName, int limit, int offset) {
+    public List<Message> getQueueMessages(String connectionId, String queueName, int limit, int offset) {
         log.debug("Obteniendo mensajes de la cola: {} (limit: {}, offset: {})", queueName, limit, offset);
         validateQueueName(queueName);
         validatePaginationParams(limit, offset);
         
-        if (!brokerAdminPort.queueExists(queueName)) {
+        if (!brokerAdminPort.queueExists(connectionId, queueName)) {
             throw new QueueNotFoundException("La cola no existe: " + queueName);
         }
         
         try {
-            List<Message> messages = brokerAdminPort.browseMessages(queueName, limit, offset);
+            List<Message> messages = brokerAdminPort.browseMessages(connectionId, queueName, limit, offset);
             log.info("Se obtuvieron {} mensajes de la cola: {}", messages.size(), queueName);
             return messages;
         } catch (Exception e) {
@@ -94,7 +93,7 @@ public class BrokerManagementService implements BrokerManagementUseCase {
     
     @Override
     @CacheEvict(value = {"queues", "queue"}, allEntries = true)
-    public void sendMessage(String queueName, SendMessageCommand command) {
+    public void sendMessage(String connectionId, String queueName, SendMessageCommand command) {
         log.debug("Enviando mensaje a la cola: {}", queueName);
         validateQueueName(queueName);
         validateSendMessageCommand(command);
@@ -112,7 +111,7 @@ public class BrokerManagementService implements BrokerManagementUseCase {
                 .status(Message.MessageStatus.PENDING)
                 .build();
                 
-            brokerAdminPort.sendMessage(queueName, message);
+            brokerAdminPort.sendMessage(connectionId, queueName, message);
             log.info("Mensaje enviado exitosamente a la cola: {}", queueName);
         } catch (Exception e) {
             log.error("Error al enviar mensaje a la cola: {}", queueName, e);
@@ -122,17 +121,17 @@ public class BrokerManagementService implements BrokerManagementUseCase {
     
     @Override
     @CacheEvict(value = {"queues", "queue"}, allEntries = true)
-    public void deleteMessage(String queueName, String messageId) {
+    public void deleteMessage(String connectionId, String queueName, String messageId) {
         log.debug("Eliminando mensaje {} de la cola: {}", messageId, queueName);
         validateQueueName(queueName);
         validateMessageId(messageId);
         
-        if (!brokerAdminPort.queueExists(queueName)) {
+        if (!brokerAdminPort.queueExists(connectionId, queueName)) {
             throw new QueueNotFoundException("La cola no existe: " + queueName);
         }
         
         try {
-            boolean deleted = brokerAdminPort.deleteMessage(queueName, messageId);
+            boolean deleted = brokerAdminPort.deleteMessage(connectionId, queueName, messageId);
             if (!deleted) {
                 throw new MessageNotFoundException("Mensaje no encontrado: " + messageId);
             }
@@ -147,16 +146,16 @@ public class BrokerManagementService implements BrokerManagementUseCase {
     
     @Override
     @CacheEvict(value = {"queues", "queue"}, allEntries = true)
-    public void purgeQueue(String queueName) {
+    public void purgeQueue(String connectionId, String queueName) {
         log.debug("Purgando cola: {}", queueName);
         validateQueueName(queueName);
         
-        if (!brokerAdminPort.queueExists(queueName)) {
+        if (!brokerAdminPort.queueExists(connectionId, queueName)) {
             throw new QueueNotFoundException("La cola no existe: " + queueName);
         }
         
         try {
-            long purgedCount = brokerAdminPort.purgeQueue(queueName);
+            long purgedCount = brokerAdminPort.purgeQueue(connectionId, queueName);
             log.info("Cola {} purgada. {} mensajes eliminados", queueName, purgedCount);
         } catch (Exception e) {
             log.error("Error al purgar la cola: {}", queueName, e);
@@ -166,16 +165,16 @@ public class BrokerManagementService implements BrokerManagementUseCase {
     
     @Override
     @CacheEvict(value = {"queues", "queue"}, allEntries = true)
-    public void pauseQueue(String queueName) {
+    public void pauseQueue(String connectionId, String queueName) {
         log.debug("Pausando cola: {}", queueName);
         validateQueueName(queueName);
         
-        if (!brokerAdminPort.queueExists(queueName)) {
+        if (!brokerAdminPort.queueExists(connectionId, queueName)) {
             throw new QueueNotFoundException("La cola no existe: " + queueName);
         }
         
         try {
-            brokerAdminPort.pauseQueue(queueName);
+            brokerAdminPort.pauseQueue(connectionId, queueName);
             log.info("Cola pausada: {}", queueName);
         } catch (Exception e) {
             log.error("Error al pausar la cola: {}", queueName, e);
@@ -185,16 +184,16 @@ public class BrokerManagementService implements BrokerManagementUseCase {
     
     @Override
     @CacheEvict(value = {"queues", "queue"}, allEntries = true)
-    public void resumeQueue(String queueName) {
+    public void resumeQueue(String connectionId, String queueName) {
         log.debug("Reanudando cola: {}", queueName);
         validateQueueName(queueName);
         
-        if (!brokerAdminPort.queueExists(queueName)) {
+        if (!brokerAdminPort.queueExists(connectionId, queueName)) {
             throw new QueueNotFoundException("La cola no existe: " + queueName);
         }
         
         try {
-            brokerAdminPort.resumeQueue(queueName);
+            brokerAdminPort.resumeQueue(connectionId, queueName);
             log.info("Cola reanudada: {}", queueName);
         } catch (Exception e) {
             log.error("Error al reanudar la cola: {}", queueName, e);
@@ -204,16 +203,16 @@ public class BrokerManagementService implements BrokerManagementUseCase {
     
     @Override
     @CacheEvict(value = {"queues", "queue"}, allEntries = true)
-    public void deleteQueue(String queueName) {
+    public void deleteQueue(String connectionId, String queueName) {
         log.debug("Eliminando cola: {}", queueName);
         validateQueueName(queueName);
         
-        if (!brokerAdminPort.queueExists(queueName)) {
+        if (!brokerAdminPort.queueExists(connectionId, queueName)) {
             throw new QueueNotFoundException("La cola no existe: " + queueName);
         }
         
         try {
-            brokerAdminPort.deleteQueue(queueName);
+            brokerAdminPort.deleteQueue(connectionId, queueName);
             log.info("Cola eliminada: {}", queueName);
         } catch (Exception e) {
             log.error("Error al eliminar la cola: {}", queueName, e);
@@ -223,16 +222,16 @@ public class BrokerManagementService implements BrokerManagementUseCase {
     
     @Override
     @CacheEvict(value = {"queues", "queue"}, allEntries = true)
-    public void createQueue(String queueName) {
+    public void createQueue(String connectionId, String queueName) {
         log.debug("Creando cola: {}", queueName);
         validateQueueName(queueName);
         
-        if (brokerAdminPort.queueExists(queueName)) {
+        if (brokerAdminPort.queueExists(connectionId, queueName)) {
             throw new BrokerOperationException("La cola ya existe: " + queueName);
         }
         
         try {
-            brokerAdminPort.createQueue(queueName);
+            brokerAdminPort.createQueue(connectionId, queueName);
             log.info("Cola creada: {}", queueName);
         } catch (Exception e) {
             log.error("Error al crear la cola: {}", queueName, e);

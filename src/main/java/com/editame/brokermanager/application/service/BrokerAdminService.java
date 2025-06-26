@@ -4,7 +4,6 @@ import com.editame.brokermanager.domain.dto.MessageInfo;
 import com.editame.brokermanager.infrastructure.adapter.in.web.dto.BrokerQueuesResponse;
 import com.editame.brokermanager.infrastructure.adapter.in.web.dto.SendMessageRequest;
 
-
 import java.util.List;
 
 public interface BrokerAdminService {

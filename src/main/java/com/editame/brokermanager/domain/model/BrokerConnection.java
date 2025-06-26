@@ -60,6 +60,16 @@ public class BrokerConnection {
     boolean active;
     
     /**
+     * ID de la conexión JMX actual (cuando está activa)
+     */
+    String currentJmxConnectionId;
+    
+    /**
+     * Última vez que se usó la conexión (para TTL)
+     */
+    Instant lastUsed;
+    
+    /**
      * Última vez que se probó la conexión
      */
     Instant lastTested;

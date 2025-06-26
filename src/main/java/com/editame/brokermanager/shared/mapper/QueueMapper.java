@@ -1,9 +1,9 @@
 package com.editame.brokermanager.shared.mapper;
 
-import com.editame.brokermanager.domain.model.Queue;
 import com.editame.brokermanager.domain.model.Message;
-import com.editame.brokermanager.infrastructure.adapter.in.web.dto.QueueResponse;
+import com.editame.brokermanager.domain.model.Queue;
 import com.editame.brokermanager.infrastructure.adapter.in.web.dto.MessageResponse;
+import com.editame.brokermanager.infrastructure.adapter.in.web.dto.QueueResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
