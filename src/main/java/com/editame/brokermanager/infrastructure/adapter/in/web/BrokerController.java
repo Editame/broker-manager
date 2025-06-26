@@ -11,6 +11,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
+
 /**
  * Controlador REST para operaciones del broker
  */
@@ -62,7 +64,7 @@ public class BrokerController {
             HealthResponse health = HealthResponse.builder()
                 .status("DOWN")
                 .error(e.getMessage())
-                .timestamp(java.time.Instant.now())
+                .timestamp(Instant.now())
                 .build();
                 
             return ResponseEntity.status(503).body(health);
@@ -72,52 +74,12 @@ public class BrokerController {
     /**
      * DTO para respuesta de health check
      */
+    @lombok.Builder
     public record HealthResponse(
         String status,
         String brokerName,
         String uptime,
         String error,
-        java.time.Instant timestamp
-    ) {
-        public static HealthResponseBuilder builder() {
-            return new HealthResponseBuilder();
-        }
-        
-        public static class HealthResponseBuilder {
-            private String status;
-            private String brokerName;
-            private String uptime;
-            private String error;
-            private java.time.Instant timestamp;
-            
-            public HealthResponseBuilder status(String status) {
-                this.status = status;
-                return this;
-            }
-            
-            public HealthResponseBuilder brokerName(String brokerName) {
-                this.brokerName = brokerName;
-                return this;
-            }
-            
-            public HealthResponseBuilder uptime(String uptime) {
-                this.uptime = uptime;
-                return this;
-            }
-            
-            public HealthResponseBuilder error(String error) {
-                this.error = error;
-                return this;
-            }
-            
-            public HealthResponseBuilder timestamp(java.time.Instant timestamp) {
-                this.timestamp = timestamp;
-                return this;
-            }
-            
-            public HealthResponse build() {
-                return new HealthResponse(status, brokerName, uptime, error, timestamp);
-            }
-        }
-    }
+        Instant timestamp
+    ) {}
 }

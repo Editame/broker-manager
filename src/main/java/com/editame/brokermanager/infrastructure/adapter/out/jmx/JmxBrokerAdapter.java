@@ -72,8 +72,8 @@ public class JmxBrokerAdapter implements BrokerAdminPort {
             long memoryUsed = memoryBean.getHeapMemoryUsage().getUsed();
             long memoryMax = memoryBean.getHeapMemoryUsage().getMax();
             
-            // Métricas de CPU del sistema (simplificado)
-            double cpuUsage = 0.0; // Por ahora simplificado
+            // Métricas de CPU del sistema
+            double cpuUsage = getCpuUsage(connection);
             
             // Métricas de tiempo
             Long uptime = safeConvertToLong(connection.getAttribute(brokerName, "UptimeMillis"));
@@ -381,17 +381,38 @@ public class JmxBrokerAdapter implements BrokerAdminPort {
     
     @Override
     public boolean queueExists(String queueName) {
+        log.info("🔍 Verificando existencia de cola: '{}'", queueName);
+        
         try (JMXConnector connector = connectionManager.getConnection()) {
             MBeanServerConnection connection = connector.getMBeanServerConnection();
             
-            ObjectName queueObjectName = new ObjectName(
-                "org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=" + queueName);
+            // Usar el mismo patrón que listQueues para consistencia
+            ObjectName queuePattern = new ObjectName("org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*");
+            Set<ObjectInstance> queueInstances = connection.queryMBeans(queuePattern, null);
             
-            Set<ObjectInstance> queueInstances = connection.queryMBeans(queueObjectName, null);
-            return !queueInstances.isEmpty();
+            log.info("🔍 Total de colas encontradas en JMX: {}", queueInstances.size());
+            
+            // Buscar la cola específica por nombre
+            for (ObjectInstance queueInstance : queueInstances) {
+                ObjectName queueObjectName = queueInstance.getObjectName();
+                try {
+                    String existingQueueName = (String) connection.getAttribute(queueObjectName, "Name");
+                    log.debug("🔍 Comparando '{}' con '{}'", queueName, existingQueueName);
+                    
+                    if (queueName.equals(existingQueueName)) {
+                        log.info("✅ Cola encontrada: '{}'", queueName);
+                        return true;
+                    }
+                } catch (Exception e) {
+                    log.warn("⚠️ Error al obtener nombre de cola desde MBean: {}", queueObjectName, e);
+                }
+            }
+            
+            log.warn("❌ Cola NO encontrada: '{}'", queueName);
+            return false;
             
         } catch (Exception e) {
-            log.error("Error al verificar existencia de la cola: {}", queueName, e);
+            log.error("💥 Error al verificar existencia de la cola: '{}'", queueName, e);
             return false;
         }
     }
@@ -707,6 +728,78 @@ public class JmxBrokerAdapter implements BrokerAdminPort {
         } catch (Exception e) {
             log.warn("No se pudo obtener el número de threads", e);
             return 0;
+        }
+    }
+    
+    /**
+     * Obtiene el uso de CPU del sistema donde corre el broker ActiveMQ
+     */
+    private double getCpuUsage(MBeanServerConnection connection) {
+        try {
+            log.debug("Intentando obtener métricas de CPU del broker");
+            
+            // Intentar obtener CPU del sistema operativo
+            ObjectName osObjectName = new ObjectName("java.lang:type=OperatingSystem");
+            
+            // Estrategia 1: ProcessCpuLoad (método preferido)
+            Double processCpuLoad = getAttributeSafely(connection, osObjectName, "ProcessCpuLoad", Double.class);
+            if (processCpuLoad != null && processCpuLoad >= 0) {
+                double cpuPercentage = processCpuLoad * 100.0;
+                log.info("CPU del proceso obtenida exitosamente: {}%", cpuPercentage);
+                return cpuPercentage;
+            }
+            
+            // Estrategia 2: SystemCpuLoad
+            Double systemCpuLoad = getAttributeSafely(connection, osObjectName, "SystemCpuLoad", Double.class);
+            if (systemCpuLoad != null && systemCpuLoad >= 0) {
+                double cpuPercentage = systemCpuLoad * 100.0;
+                log.info("CPU del sistema obtenida exitosamente: {}%", cpuPercentage);
+                return cpuPercentage;
+            }
+            
+            // Estrategia 3: ProcessCpuTime
+            Long processCpuTime = getAttributeSafely(connection, osObjectName, "ProcessCpuTime", Long.class);
+            if (processCpuTime != null && processCpuTime > 0) {
+                double approximateCpu = Math.min(processCpuTime / 1_000_000_000.0 / 60.0 * 100.0, 100.0);
+                log.info("CPU aproximado calculado: {}%", approximateCpu);
+                return approximateCpu;
+            }
+            
+            // Estrategia 4: Estimación basada en threads
+            String osName = getAttributeSafely(connection, osObjectName, "Name", String.class);
+            Integer availableProcessors = getAttributeSafely(connection, osObjectName, "AvailableProcessors", Integer.class);
+            
+            if (osName != null && availableProcessors != null && availableProcessors > 0) {
+                log.info("Sistema operativo del broker: {} con {} procesadores", osName, availableProcessors);
+                int activeThreads = getActiveThreadCount(connection);
+                double estimatedCpu = Math.min((double) activeThreads / availableProcessors * 10.0, 100.0);
+                log.info("CPU estimado basado en threads/procesadores: {}%", estimatedCpu);
+                return estimatedCpu;
+            }
+            
+            log.warn("No se pudo obtener ninguna métrica de CPU válida del broker remoto");
+            return 0.0;
+            
+        } catch (Exception e) {
+            log.error("Error al obtener métricas de CPU del broker", e);
+            return 0.0;
+        }
+    }
+    
+    /**
+     * Obtiene un atributo de forma segura, retornando null si hay error
+     */
+    private <T> T getAttributeSafely(MBeanServerConnection connection, ObjectName objectName, 
+                                    String attributeName, Class<T> type) {
+        try {
+            Object value = connection.getAttribute(objectName, attributeName);
+            if (value != null && type.isAssignableFrom(value.getClass())) {
+                return type.cast(value);
+            }
+            return null;
+        } catch (Exception e) {
+            log.debug("{} no disponible: {}", attributeName, e.getMessage());
+            return null;
         }
     }
     
